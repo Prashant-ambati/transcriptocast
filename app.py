@@ -1,8 +1,18 @@
+import os
+import sys
+
+# Force Hugging Face cache directory before any imports
+os.environ["TRANSFORMERS_CACHE"] = "/home/appuser/.cache/huggingface"
+os.environ["HF_HOME"] = "/home/appuser/.cache/huggingface"
+os.environ["HF_DATASETS_CACHE"] = "/home/appuser/.cache/huggingface"
+os.environ["HF_HUB_CACHE"] = "/home/appuser/.cache/huggingface"
+os.environ["XDG_CACHE_HOME"] = "/home/appuser/.cache"
+
+# Now import other modules
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 import whisper
 import tempfile
-import os
 from transformers import pipeline
 import logging
 from pathlib import Path
@@ -12,16 +22,23 @@ import huggingface_hub
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get cache directories from environment variables
-HF_CACHE_DIR = os.getenv("TRANSFORMERS_CACHE", "/home/appuser/.cache/huggingface")
-WHISPER_CACHE_DIR = os.getenv("XDG_CACHE_HOME", "/home/appuser/.cache") + "/whisper"
+# Get cache directories
+HF_CACHE_DIR = "/home/appuser/.cache/huggingface"
+WHISPER_CACHE_DIR = "/home/appuser/.cache/whisper"
 
-# Ensure cache directories exist
-Path(HF_CACHE_DIR).mkdir(parents=True, exist_ok=True)
-Path(WHISPER_CACHE_DIR).mkdir(parents=True, exist_ok=True)
+# Ensure cache directories exist with proper permissions
+for cache_dir in [HF_CACHE_DIR, WHISPER_CACHE_DIR]:
+    path = Path(cache_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    try:
+        # Try to set permissions if we have access
+        path.chmod(0o755)
+    except Exception as e:
+        logger.warning(f"Could not set permissions on {cache_dir}: {e}")
 
-# Set Hugging Face cache directory
+# Force Hugging Face to use our cache directory
 huggingface_hub.constants.HF_HUB_CACHE = HF_CACHE_DIR
+huggingface_hub.constants.HF_HOME = HF_CACHE_DIR
 
 app = FastAPI(title="TranscriptoCast AI (Demo)")
 
@@ -36,11 +53,13 @@ except Exception as e:
 
 try:
     logger.info("Loading summarization model...")
+    # Force cache directory in pipeline
     summarizer = pipeline(
         "summarization",
         model="facebook/bart-large-cnn",
         cache_dir=HF_CACHE_DIR,
-        local_files_only=False
+        local_files_only=False,
+        use_auth_token=False
     )
     logger.info("Summarization model loaded successfully")
 except Exception as e:
@@ -49,11 +68,13 @@ except Exception as e:
 
 try:
     logger.info("Loading translation model...")
+    # Force cache directory in pipeline
     translator = pipeline(
         "translation",
         model="facebook/mbart-large-50-many-to-many-mmt",
         cache_dir=HF_CACHE_DIR,
-        local_files_only=False
+        local_files_only=False,
+        use_auth_token=False
     )
     logger.info("Translation model loaded successfully")
 except Exception as e:
