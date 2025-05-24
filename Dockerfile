@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Create cache directory with proper permissions
+RUN mkdir -p /code/.cache && chmod 777 /code/.cache
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
