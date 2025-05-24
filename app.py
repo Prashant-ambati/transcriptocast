@@ -6,23 +6,32 @@ import os
 from transformers import pipeline
 import logging
 from pathlib import Path
+import huggingface_hub
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create cache directory in the workspace
+# Create cache directories in the workspace
 CACHE_DIR = Path("/code/.cache")
-CACHE_DIR.mkdir(exist_ok=True)
-os.environ["TRANSFORMERS_CACHE"] = str(CACHE_DIR)
-os.environ["HF_HOME"] = str(CACHE_DIR)
+CACHE_DIR.mkdir(exist_ok=True, parents=True)
+HF_CACHE_DIR = CACHE_DIR / "huggingface"
+HF_CACHE_DIR.mkdir(exist_ok=True, parents=True)
+WHISPER_CACHE_DIR = CACHE_DIR / "whisper"
+WHISPER_CACHE_DIR.mkdir(exist_ok=True, parents=True)
+
+# Set environment variables for cache directories
+os.environ["TRANSFORMERS_CACHE"] = str(HF_CACHE_DIR)
+os.environ["HF_HOME"] = str(HF_CACHE_DIR)
+os.environ["HF_DATASETS_CACHE"] = str(HF_CACHE_DIR)
+huggingface_hub.constants.HF_HUB_CACHE = str(HF_CACHE_DIR)
 
 app = FastAPI(title="TranscriptoCast AI (Demo)")
 
 # Load models once at startup
 try:
     logger.info("Loading Whisper model...")
-    whisper_model = whisper.load_model("base", download_root=str(CACHE_DIR))
+    whisper_model = whisper.load_model("base", download_root=str(WHISPER_CACHE_DIR))
     logger.info("Whisper model loaded successfully")
 except Exception as e:
     logger.error(f"Error loading Whisper model: {str(e)}")
@@ -30,7 +39,12 @@ except Exception as e:
 
 try:
     logger.info("Loading summarization model...")
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn", cache_dir=str(CACHE_DIR))
+    summarizer = pipeline(
+        "summarization",
+        model="facebook/bart-large-cnn",
+        cache_dir=str(HF_CACHE_DIR),
+        local_files_only=False
+    )
     logger.info("Summarization model loaded successfully")
 except Exception as e:
     logger.error(f"Error loading summarization model: {str(e)}")
@@ -38,7 +52,12 @@ except Exception as e:
 
 try:
     logger.info("Loading translation model...")
-    translator = pipeline("translation", model="facebook/mbart-large-50-many-to-many-mmt", cache_dir=str(CACHE_DIR))
+    translator = pipeline(
+        "translation",
+        model="facebook/mbart-large-50-many-to-many-mmt",
+        cache_dir=str(HF_CACHE_DIR),
+        local_files_only=False
+    )
     logger.info("Translation model loaded successfully")
 except Exception as e:
     logger.error(f"Error loading translation model: {str(e)}")
