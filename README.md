@@ -1,10 +1,9 @@
----
-title: Transcriptocast Demo
-emoji: 🐢
-colorFrom: pink
-colorTo: yellow
-sdk: docker
-pinned: false
----
+# TranscriptoCast AI (Demo) 🚀
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+A minimal FastAPI Hugging Face Space for multimodal podcast/video summarization:
+
+- 🎤 `/transcribe` — Upload audio/video and get a transcript (Whisper)
+- 📝 `/summarize` — Summarize text (BART)
+- 🌍 `/translate` — Translate text (MBart50)
+
+Try it out by uploading a file or pasting text! 
