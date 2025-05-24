@@ -1,40 +1,46 @@
 import os
 import sys
+import shutil
+from pathlib import Path
 
-# Force Hugging Face cache directory before any imports
-os.environ["TRANSFORMERS_CACHE"] = "/home/appuser/.cache/huggingface"
-os.environ["HF_HOME"] = "/home/appuser/.cache/huggingface"
-os.environ["HF_DATASETS_CACHE"] = "/home/appuser/.cache/huggingface"
-os.environ["HF_HUB_CACHE"] = "/home/appuser/.cache/huggingface"
-os.environ["XDG_CACHE_HOME"] = "/home/appuser/.cache"
+# Force cache directories before any imports
+CACHE_BASE = "/opt/cache"
+HF_CACHE_DIR = f"{CACHE_BASE}/huggingface"
+WHISPER_CACHE_DIR = f"{CACHE_BASE}/whisper"
+
+# Ensure cache directories exist and are writable
+for cache_dir in [HF_CACHE_DIR, WHISPER_CACHE_DIR]:
+    try:
+        path = Path(cache_dir)
+        path.mkdir(parents=True, exist_ok=True)
+        # Try to create a test file to verify write permissions
+        test_file = path / ".test_write"
+        test_file.touch()
+        test_file.unlink()
+    except Exception as e:
+        print(f"Error setting up cache directory {cache_dir}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+# Set environment variables
+os.environ["TRANSFORMERS_CACHE"] = HF_CACHE_DIR
+os.environ["HF_HOME"] = HF_CACHE_DIR
+os.environ["HF_DATASETS_CACHE"] = HF_CACHE_DIR
+os.environ["HF_HUB_CACHE"] = HF_CACHE_DIR
+os.environ["HF_CACHE_HOME"] = HF_CACHE_DIR
+os.environ["XDG_CACHE_HOME"] = CACHE_BASE
 
 # Now import other modules
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 import whisper
 import tempfile
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 import logging
-from pathlib import Path
 import huggingface_hub
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Get cache directories
-HF_CACHE_DIR = "/home/appuser/.cache/huggingface"
-WHISPER_CACHE_DIR = "/home/appuser/.cache/whisper"
-
-# Ensure cache directories exist with proper permissions
-for cache_dir in [HF_CACHE_DIR, WHISPER_CACHE_DIR]:
-    path = Path(cache_dir)
-    path.mkdir(parents=True, exist_ok=True)
-    try:
-        # Try to set permissions if we have access
-        path.chmod(0o755)
-    except Exception as e:
-        logger.warning(f"Could not set permissions on {cache_dir}: {e}")
 
 # Force Hugging Face to use our cache directory
 huggingface_hub.constants.HF_HUB_CACHE = HF_CACHE_DIR
@@ -42,10 +48,49 @@ huggingface_hub.constants.HF_HOME = HF_CACHE_DIR
 
 app = FastAPI(title="TranscriptoCast AI (Demo)")
 
+def load_model_with_retry(model_name, model_type, max_retries=3):
+    """Load a model with retry logic and proper cache handling."""
+    for attempt in range(max_retries):
+        try:
+            if model_type == "whisper":
+                return whisper.load_model(model_name, download_root=WHISPER_CACHE_DIR)
+            else:
+                # For Hugging Face models, load tokenizer and model separately
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_name,
+                    cache_dir=HF_CACHE_DIR,
+                    local_files_only=False,
+                    use_auth_token=False
+                )
+                model = AutoModelForSeq2SeqLM.from_pretrained(
+                    model_name,
+                    cache_dir=HF_CACHE_DIR,
+                    local_files_only=False,
+                    use_auth_token=False
+                )
+                return pipeline(
+                    model_type,
+                    model=model,
+                    tokenizer=tokenizer,
+                    device=-1  # Use CPU
+                )
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.warning(f"Attempt {attempt + 1} failed: {e}")
+            # Clean up any partial downloads
+            try:
+                if model_type == "whisper":
+                    shutil.rmtree(WHISPER_CACHE_DIR, ignore_errors=True)
+                else:
+                    shutil.rmtree(HF_CACHE_DIR, ignore_errors=True)
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up cache: {cleanup_error}")
+
 # Load models once at startup
 try:
     logger.info("Loading Whisper model...")
-    whisper_model = whisper.load_model("base", download_root=WHISPER_CACHE_DIR)
+    whisper_model = load_model_with_retry("base", "whisper")
     logger.info("Whisper model loaded successfully")
 except Exception as e:
     logger.error(f"Error loading Whisper model: {str(e)}")
@@ -53,14 +98,7 @@ except Exception as e:
 
 try:
     logger.info("Loading summarization model...")
-    # Force cache directory in pipeline
-    summarizer = pipeline(
-        "summarization",
-        model="facebook/bart-large-cnn",
-        cache_dir=HF_CACHE_DIR,
-        local_files_only=False,
-        use_auth_token=False
-    )
+    summarizer = load_model_with_retry("facebook/bart-large-cnn", "summarization")
     logger.info("Summarization model loaded successfully")
 except Exception as e:
     logger.error(f"Error loading summarization model: {str(e)}")
@@ -68,14 +106,7 @@ except Exception as e:
 
 try:
     logger.info("Loading translation model...")
-    # Force cache directory in pipeline
-    translator = pipeline(
-        "translation",
-        model="facebook/mbart-large-50-many-to-many-mmt",
-        cache_dir=HF_CACHE_DIR,
-        local_files_only=False,
-        use_auth_token=False
-    )
+    translator = load_model_with_retry("facebook/mbart-large-50-many-to-many-mmt", "translation")
     logger.info("Translation model loaded successfully")
 except Exception as e:
     logger.error(f"Error loading translation model: {str(e)}")
