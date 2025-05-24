@@ -1,9 +1,29 @@
-# TranscriptoCast AI (Demo) 🚀
+---
+title: Transcriptocast AI Demo
+emoji: 🎙️
+colorFrom: blue
+colorTo: purple
+sdk: docker
+sdk_version: 3.10.0
+app_file: app.py
+pinned: false
+---
 
-A minimal FastAPI Hugging Face Space for multimodal podcast/video summarization:
+# Transcriptocast AI Demo
 
-- 🎤 `/transcribe` — Upload audio/video and get a transcript (Whisper)
-- 📝 `/summarize` — Summarize text (BART)
-- 🌍 `/translate` — Translate text (MBart50)
+A powerful AI-powered application that provides:
+- Audio transcription using Whisper
+- Text summarization using BART
+- Multi-language translation using mBART
 
-Try it out by uploading a file or pasting text! 
+## Features
+- Convert audio to text
+- Generate concise summaries
+- Translate between multiple languages
+
+## API Endpoints
+- `/transcribe` - Convert audio to text
+- `/summarize` - Generate text summaries
+- `/translate` - Translate text between languages
+
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference 
