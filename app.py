@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
-import openai.whisper as whisper
+import whisper
 import tempfile
 import os
 from transformers import pipeline

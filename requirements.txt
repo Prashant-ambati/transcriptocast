@@ -1,7 +1,9 @@
 fastapi
 uvicorn
-openai-whisper
+git+https://github.com/openai/whisper.git
 torch
 transformers
 pydantic
-python-multipart 
+python-multipart
+numpy
+tqdm 
